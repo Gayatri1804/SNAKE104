@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            text-align: center;
+        }
+        canvas {
+            background-color: black;
+            display: block;
+            margin: 10px auto;
+        }
+        .info {
+            margin-bottom: 20px;
+        }
+        .input-field {
+            margin-bottom: 10px;
+        }
+        .level-select {
+            margin: 10px 0;
+        }
+        .history {
+            margin-top: 20px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="info">
+            <h1>Snake Game</h1>
+            <div class="input-field">
+                <label for="username">Enter your name: </label>
+                <input type="text" id="username" placeholder="Your name">
+            </div>
+            <button id="start-btn">Start Game</button>
+            <div class="level-select">
+                <label for="level">Select Difficulty: </label>
+                <select id="level">
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                </select>
+            </div>
+            <p>Current Score: <span id="current-score">0</span></p>
+            <p>High Score: <span id="high-score">0</span></p>
+            <p>Time Elapsed: <span id="timer">0</span> seconds</p>
+        </div>
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+        <div class="history">
+            <h2>Previous Games:</h2>
+            <ul id="game-history"></ul>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const startBtn = document.getElementById("start-btn");
+        const usernameInput = document.getElementById("username");
+        const currentScoreEl = document.getElementById("current-score");
+        const highScoreEl = document.getElementById("high-score");
+        const timerEl = document.getElementById("timer");
+        const levelSelect = document.getElementById("level");
+        const historyList = document.getElementById("game-history");
+
+        let snake, food, score, highScore, gameInterval, timerInterval, timeElapsed, levelSpeed;
+        let gameHistory = JSON.parse(localStorage.getItem('gameHistory')) || [];
+
+        const unit = 20;
+        const directions = { LEFT: [-unit, 0], RIGHT: [unit, 0], UP: [0, -unit], DOWN: [0, unit] };
+        let direction = directions.RIGHT;
+
+        // Load high score from local storage
+        highScore = localStorage.getItem('highScore') || 0;
+        highScoreEl.textContent = highScore;
+
+        // Display game history
+        displayGameHistory();
+
+        function startGame() {
+            const username = usernameInput.value.trim();
+            if (!username) {
+                alert('Please enter your name');
+                return;
+            }
+            resetGame();
+            gameInterval = setInterval(updateGame, levelSpeed);
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function resetGame() {
+            direction = directions.RIGHT;
+            snake = [{ x: 160, y: 160 }];
+            generateFood();
+            score = 0;
+            timeElapsed = 0;
+            currentScoreEl.textContent = score;
+            timerEl.textContent = timeElapsed;
+            levelSpeed = getLevelSpeed();
+        }
+
+        function generateFood() {
+            food = {
+                x: Math.floor(Math.random() * canvas.width / unit) * unit,
+                y: Math.floor(Math.random() * canvas.height / unit) * unit
+            };
+        }
+
+        function getLevelSpeed() {
+            const level = levelSelect.value;
+            switch (level) {
+                case 'easy': return 150;
+                case 'medium': return 100;
+                case 'hard': return 50;
+                default: return 100;
+            }
+        }
+
+        function updateTimer() {
+            timeElapsed++;
+            timerEl.textContent = timeElapsed;
+        }
+
+        function updateGame() {
+            let head = { ...snake[0] };
+            head.x += direction[0];
+            head.y += direction[1];
+
+            // Game over conditions
+            if (head.x < 0 || head.y < 0 || head.x >= canvas.width || head.y >= canvas.height || snakeCollision(head)) {
+                gameOver();
+                return;
+            }
+
+            snake.unshift(head);
+
+            // Check if the snake eats food
+            if (head.x === food.x && head.y === food.y) {
+                score++;
+                currentScoreEl.textContent = score;
+                generateFood();
+            } else {
+                snake.pop();
+            }
+
+            draw();
+        }
+
+        function snakeCollision(head) {
+            return snake.some(segment => segment.x === head.x && segment.y === head.y);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw snake
+            snake.forEach(segment => {
+                ctx.fillStyle = 'green';
+                ctx.fillRect(segment.x, segment.y, unit, unit);
+            });
+
+            // Draw food
+            ctx.fillStyle = 'red';
+            ctx.fillRect(food.x, food.y, unit, unit);
+        }
+
+        function gameOver() {
+            clearInterval(gameInterval);
+            clearInterval(timerInterval);
+
+            // Save the game result
+            const username = usernameInput.value.trim();
+            gameHistory.push({ username, score, timeElapsed });
+            localStorage.setItem('gameHistory', JSON.stringify(gameHistory));
+            displayGameHistory();
+
+            // Check if we have a new high score
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('highScore', highScore);
+                highScoreEl.textContent = highScore;
+            }
+
+            alert(`Game Over! ${username}, your score is ${score}`);
+        }
+
+        function displayGameHistory() {
+            historyList.innerHTML = '';
+            gameHistory.forEach((game, index) => {
+                const li = document.createElement('li');
+                li.textContent = `${index + 1}. ${game.username} - Score: ${game.score}, Time: ${game.timeElapsed}s`;
+                historyList.appendChild(li);
+            });
+        }
+
+        // Keyboard input for controlling snake direction
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp' && direction !== directions.DOWN) direction = directions.UP;
+            if (e.key === 'ArrowDown' && direction !== directions.UP) direction = directions.DOWN;
+            if (e.key === 'ArrowLeft' && direction !== directions.RIGHT) direction = directions.LEFT;
+            if (e.key === 'ArrowRight' && direction !== directions.LEFT) direction = directions.RIGHT;
+        });
+
+        startBtn.addEventListener('click', startGame);
+    </script>
+</body>
+</html>
